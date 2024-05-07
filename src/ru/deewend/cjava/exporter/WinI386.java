@@ -7,8 +7,15 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public class WinI386 implements Exporter {
+    private CompiledCode instructions;
+
     @Override
-    public void export(CompiledCode instructions, ByteBuffer buffer) {
+    public void load(CompiledCode instructions) {
+        this.instructions = instructions;
+    }
+
+    @Override
+    public void export(ByteBuffer buffer) {
         buffer.order(ByteOrder.LITTLE_ENDIAN);
 
         // DOS header
@@ -53,7 +60,7 @@ public class WinI386 implements Exporter {
         buffer.putShort((short) 4); // minimal Windows version is NT4
         buffer.putShort((short) 0); // padding
         buffer.putInt(0);
-        buffer.putInt(0x4000); // size of image
+        buffer.putInt(16384); // size of image
         buffer.putInt(0x200); // size of headers
         buffer.putInt(0);
         buffer.putShort((short) 2); // GUI
@@ -169,5 +176,15 @@ public class WinI386 implements Exporter {
         Helper.writeNullUntil(buffer, 0x600);
         Helper.putString(buffer, "a simple PE executable\0");
         Helper.putString(buffer, "Hello world!\0");
+    }
+
+    @Override
+    public long addressOfFile(int idx) {
+        return 0;
+    }
+
+    @Override
+    public long addressOfString(int idx) {
+        return 0;
     }
 }

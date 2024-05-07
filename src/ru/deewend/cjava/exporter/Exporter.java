@@ -6,5 +6,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public interface Exporter {
-    void export(CompiledCode instructions, ByteBuffer stream) throws IOException;
+    void load(CompiledCode instructions);
+    void export(ByteBuffer stream) throws IOException;
+    long addressOfFile(int idx);
+    long addressOfString(int idx);
 }
