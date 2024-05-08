@@ -2,6 +2,7 @@ package ru.deewend.cjava;
 
 import ru.deewend.cjava.exporter.Exporter;
 
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;

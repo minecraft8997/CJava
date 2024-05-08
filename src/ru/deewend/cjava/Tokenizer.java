@@ -35,13 +35,17 @@ public class Tokenizer {
             char firstSymbol = line.charAt(0);
             if (Character.isLetterOrDigit(firstSymbol)) {
                 for (i = 1; i < line.length(); i++) {
-                    if (!Character.isLetterOrDigit(line.charAt(i))) break;
+                    char currentChar = line.charAt(i);
+                    if (!Character.isLetterOrDigit(line.charAt(i)) && currentChar != '_') break;
                 }
                 i--;
                 token();
             } else if (firstSymbol == '"') {
                 for (i = 1; i < line.length(); i++) {
                     char currentChar = line.charAt(i);
+                    // boolean firstCondition =
+                    // (firstSymbol == '"' && currentChar == '"') || (firstSymbol == '<' && currentChar == '>');
+                    // but it's tricky since < > are also comparison operators
                     if (currentChar == '"' && (i == 1 || line.charAt(i - 1) != '\\')) {
                         token();
 
@@ -62,7 +66,7 @@ public class Tokenizer {
                 if (closingSymbol != '\'') issue(badEnding);
 
                 token();
-            } else if ("#(){}+-/*,;".indexOf(firstSymbol) != -1) {
+            } else if ("#(){}+-/*,;\\".indexOf(firstSymbol) != -1) { // todo implement support of <> (#include <something>)
                 i = 0;
                 token(); // instead of token = String.valueOf(firstSymbol); line = line.substring(1);
             } else {

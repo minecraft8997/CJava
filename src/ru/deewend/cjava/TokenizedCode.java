@@ -19,7 +19,7 @@ public class TokenizedCode {
         LITERAL_STRING((token, firstChar) -> firstChar == '"'),
         LITERAL_CHARACTER((token, firstChar) -> firstChar == '\''),
         OPERATOR_MATH(((token, firstChar) -> "+-/*".indexOf(firstChar) != -1)),
-        OTHER((token, firstChar) -> "#(){},".indexOf(firstChar) != -1),
+        OTHER((token, firstChar) -> "#(){},\\".indexOf(firstChar) != -1),
         STATEMENT_END((token, firstChar) -> firstChar == ';');
 
         private final Detector detector;
@@ -36,6 +36,7 @@ public class TokenizedCode {
     private final List<List<String>> tokenizedLines;
     private int lineIdx;
     private int nextTokenIdx;
+    private boolean linesCountModified;
 
     private TokenizedCode(List<List<String>> tokenizedLines) {
         this.tokenizedLines = tokenizedLines;
@@ -72,7 +73,7 @@ public class TokenizedCode {
 
     public String nextToken(boolean moveCursor) {
         List<String> tokens = tokenizedLines.get(lineIdx);
-        if (nextTokenIdx >= tokens.size()) issue("nextTokenIdx out of bounds");
+        if (nextTokenIdx >= tokens.size()) issue("too few tokens");
 
         String result = tokens.get(nextTokenIdx);
         if (moveCursor) nextTokenIdx++;
@@ -80,7 +81,38 @@ public class TokenizedCode {
         return result;
     }
 
-    private void issue(String message) {
-        throw new IllegalArgumentException("Line " + (lineIdx + 1) + ": " + message);
+    public void patchToken(String newValue) {
+        if (nextTokenIdx == 0) issue("nextToken has never been called");
+
+        List<String> tokens = tokenizedLines.get(lineIdx);
+        if (!newValue.isEmpty()) tokens.set(nextTokenIdx - 1, newValue);
+        else                     tokens.remove(nextTokenIdx - 1);
+    }
+
+    public void insertToken(String newValue) {
+        List<String> tokens = tokenizedLines.get(lineIdx);
+        if (nextTokenIdx < 0 || nextTokenIdx > tokens.size() /* not >= */) issue("nextTokenIdx: " + nextTokenIdx);
+
+        tokens.add(nextTokenIdx++, newValue);
+    }
+
+    public void removeLine(int lineIdx) {
+        if (lineIdx < 0 || lineIdx >= tokenizedLines.size()) issue("lineIdx out of bounds: " + lineIdx);
+
+        tokenizedLines.remove(lineIdx);
+        linesCountModified = true;
+    }
+
+    public boolean isLinesCountModified() {
+        return linesCountModified;
+    }
+
+    public int linesCount() {
+        return tokenizedLines.size();
+    }
+
+    public void issue(String message) {
+        throw new IllegalArgumentException((linesCountModified ? "Internal " : "") +
+                "Line " + (lineIdx + 1) + ": " + message);
     }
 }

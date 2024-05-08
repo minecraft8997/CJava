@@ -1,21 +1,20 @@
 package ru.deewend.cjava;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class CJava {
-    private final Map<String, String> defines;
+    //private static CJava instance;
+    final Set<String> defines;
     private final InputStream sourceStream;
     List<String> sourceLines;
     TokenizedCode tokenizedLines;
     int idx;
     private final boolean debugPreprocessingResult;
 
-    public CJava(Map<String, String> defines, InputStream sourceStream, boolean debugPreprocessingResult) {
-        this.defines = new HashMap<>(defines);
+    public CJava(Set<String> defines, InputStream sourceStream, boolean debugPreprocessingResult) {
+        //instance = this;
+        this.defines = new HashSet<>(defines);
         this.sourceStream = sourceStream;
         this.debugPreprocessingResult = debugPreprocessingResult;
     }
@@ -23,7 +22,7 @@ public class CJava {
     public static void main(String[] args) {
         CJava compiler;
         try (FileInputStream stream = new FileInputStream("source.c")) {
-            compiler = new CJava(new HashMap<>(), stream, true);
+            compiler = new CJava(new HashSet<>(), stream, true);
             compiler.load();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -31,6 +30,12 @@ public class CJava {
 
         compiler.preprocess();
     }
+
+    /*
+    public static CJava getInstance() {
+        return instance;
+    }
+     */
 
     public void load() {
         try {
