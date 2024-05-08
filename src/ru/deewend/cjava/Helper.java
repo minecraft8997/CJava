@@ -26,6 +26,10 @@ public class Helper {
         throw new UnsupportedOperationException();
     }
 
+    public static Pair<String, String> readLettersDigits(String str) {
+        throw new UnsupportedOperationException();
+    }
+
     public static boolean validateToken(String token) {
         if (token.isEmpty()) {
             return false;

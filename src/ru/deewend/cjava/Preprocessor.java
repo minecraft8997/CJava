@@ -1,9 +1,15 @@
 package ru.deewend.cjava;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Preprocessor {
     private static final Preprocessor INSTANCE = new Preprocessor();
+    private final Map<Integer, List<Integer>> futureAddresses = new HashMap<>();
+    private CJava compiler;
 
     private String nextLineRequestedBy;
 
@@ -14,13 +20,27 @@ public class Preprocessor {
         return INSTANCE;
     }
 
+    public void linkCompiler(CJava compiler) {
+        this.compiler = compiler;
+        futureAddresses.clear();
+    }
+
+    public boolean hasFutureAddresses() {
+        return futureAddresses.containsKey(compiler.idx);
+    }
+
+    public List<Integer> listFutureAddresses() {
+        return new ArrayList<>(futureAddresses.get(compiler.idx));
+    }
+
     /**
-     * @param line The line
-     * @return true if the compiler should consider this line didn't exist
+     * @return true if the compiler should start analyzing source file again.
      */
-    public boolean handleLine(String line) throws Exception {
+    public boolean handleLine() throws Exception {
         Method method = null;
-        line = Helper.removeBlankCharsFromStart(line);
+        List<String> tokenizedLine = compiler.tokenizedLines.get(compiler.idx);
+
+
         if (line.startsWith("#")) {
             line = line.substring(1);
             line = Helper.removeBlankCharsFromStart(line);
@@ -53,15 +73,9 @@ public class Preprocessor {
     }
 
     public boolean doDefine(String line) {
-        return false;
-    }
-
-    public boolean doUndef(String line) {
-        return false;
-    }
-
-    public boolean doIf(String line) {
-        Helper.crash("Directive #if is not currently supported");
+        String name = Helper.readUntilBlankChar(line);
+        line = line.substring(name.length());
+        line = Helper.removeBlankCharsFromStart()
 
         return false;
     }

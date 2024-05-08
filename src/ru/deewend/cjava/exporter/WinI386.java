@@ -57,7 +57,7 @@ public class WinI386 implements Exporter {
         buffer.putInt(0x200); // offset where sections start in the file
         buffer.putInt(0); // padding
         buffer.putInt(0);
-        buffer.putShort((short) 4); // minimal Windows version is NT4
+        buffer.putShort((short) instructions.getMinNTVersion());
         buffer.putShort((short) 0); // padding
         buffer.putInt(0);
         buffer.putInt(16384); // size of image
@@ -146,13 +146,13 @@ public class WinI386 implements Exporter {
 
         // imports
         buffer.putInt(0x203C);
-        buffer.putInt(0); // padding
+        buffer.putInt(0);
         buffer.putInt(0);
         buffer.putInt(0x2078);
         buffer.putInt(0x2068);
 
         buffer.putInt(0x2044);
-        buffer.putInt(0); // padding
+        buffer.putInt(0);
         buffer.putInt(0);
         buffer.putInt(0x2085);
         buffer.putInt(0x2070);

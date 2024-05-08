@@ -2,7 +2,6 @@ package ru.deewend.cjava;
 
 import ru.deewend.cjava.instruction.Instruction;
 
-import java.io.ByteArrayOutputStream;
 import java.util.*;
 
 public class CompiledCode {
