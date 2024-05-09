@@ -7,7 +7,7 @@ import java.util.*;
 public class CompiledCode {
     private List<Instruction> instructions = new ArrayList<>();
     private boolean finishedConstructingInstructions;
-    private Map<LibraryName, Set<String>> imports = new HashMap<>();
+    private Map<LibraryName, Set<ExternalMethod>> imports = new HashMap<>();
     private boolean finishedConstructingImports;
     private Map<String, Integer> stringsSI = new HashMap<>();
     private Map<Integer, String> stringsIS = new HashMap<>();
@@ -31,12 +31,12 @@ public class CompiledCode {
         return instructions;
     }
 
-    public void addImport(String library, String functionName) {
+    public void addImport(String library, String functionName, List<String> parameterTypes) {
         LibraryName libraryName = LibraryName.of(library);
         if (!imports.containsKey(libraryName)) {
             imports.put(libraryName, new HashSet<>());
         }
-        imports.get(libraryName).add(functionName);
+        imports.get(libraryName).add(ExternalMethod.of(functionName, parameterTypes));
     }
 
     public void finishConstructingImports() {
@@ -48,7 +48,7 @@ public class CompiledCode {
         return finishedConstructingImports;
     }
 
-    public Set<Map.Entry<LibraryName, Set<String>>> importsSet() {
+    public Set<Map.Entry<LibraryName, Set<ExternalMethod>>> importsSet() {
         if (!finishedConstructingImports) throw new IllegalStateException();
 
         return imports.entrySet();

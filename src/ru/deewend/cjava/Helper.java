@@ -16,22 +16,6 @@ public class Helper {
     private Helper() {
     }
 
-    public static String removeBlankCharsFromStart(String str) {
-        throw new UnsupportedOperationException();
-    }
-
-    public static String removeBlankCharsFromEnd(String str) {
-        throw new UnsupportedOperationException();
-    }
-
-    public static String readUntilBlankChar(String str) {
-        throw new UnsupportedOperationException();
-    }
-
-    public static Pair<String, String> readLettersDigits(String str) {
-        throw new UnsupportedOperationException();
-    }
-
     public static boolean validateToken(String token) {
         if (token.isEmpty()) {
             return false;
@@ -52,6 +36,19 @@ public class Helper {
         }
 
         return true;
+    }
+
+    public static String stringTokenToString(String token) {
+        token = token.substring(1, token.length() - 1);
+        token = token
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\")
+                .replace("\\0", "\0")
+                .replace("\\b", "\b")
+                .replace("\\n", "\n")
+                .replace("\\t", "\t");
+
+        return token;
     }
 
     public static List<List<String>> tokenize(InputStream sourceStream) {

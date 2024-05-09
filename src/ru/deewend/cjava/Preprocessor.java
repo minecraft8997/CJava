@@ -1,5 +1,9 @@
 package ru.deewend.cjava;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.*;
 
@@ -7,10 +11,10 @@ public class Preprocessor {
     private static final Preprocessor INSTANCE = new Preprocessor();
     private final Map<Integer, List<Integer>> futureAddresses = new HashMap<>();
     private final Map<String, Object> context = new HashMap<>();
+    private final Map<String, Object> pragmaOptions = new HashMap<>();
     private Set<String> defines;
     private CJava compiler;
     private TokenizedCode tokenizedCode;
-
     private String nextLineRequestedBy;
 
     private Preprocessor() {
@@ -32,7 +36,7 @@ public class Preprocessor {
     }
 
     public List<Integer> listFutureAddresses() {
-        return new ArrayList<>(futureAddresses.get(compiler.idx));
+        return Collections.unmodifiableList(futureAddresses.get(compiler.idx));
     }
 
     /**
@@ -59,7 +63,6 @@ public class Preprocessor {
         if (method != null) {
             method.setAccessible(true);
 
-            System.err.println("Invoking " + method.getName() + " " + method.getDeclaringClass());
             return (Boolean) method.invoke(this);
         }
 
@@ -85,12 +88,70 @@ public class Preprocessor {
         return null;
     }
 
+    @SuppressWarnings("IOStreamConstructor")
     public boolean doInclude() {
-        return false;
+        tokenizedCode.removeLine(compiler.idx);
+        if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.LITERAL_STRING) {
+            tokenizedCode.issue("expected the next token (path to the file to be included) to be a string literal");
+        }
+        String fileName = Helper.stringTokenToString(tokenizedCode.nextToken());
+
+        List<List<String>> tokenizedLines;
+        File file = new File(compiler.parentDirectory, fileName);
+        try (InputStream stream = new FileInputStream(file)) {
+            tokenizedLines = Helper.tokenize(stream);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        for (int i = tokenizedLines.size() - 1; i >= 0; i--) {
+            tokenizedCode.insertFirstLine(tokenizedLines.get(i));
+        }
+
+        return true;
     }
 
     public boolean doPragma() {
-        return false;
+        tokenizedCode.removeLine(compiler.idx);
+        if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) {
+            tokenizedCode.issue("expected the next token (after #pragma) to be a symbol");
+        }
+        String firstOption = tokenizedCode.nextToken();
+        if (!firstOption.equals("cjava")) {
+            tokenizedCode.issue("only \"#pragma cjava ...\" options are currently supported");
+        }
+        if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) {
+            tokenizedCode.issue("expected the next token (after #pragma cjava) to be a symbol");
+        }
+        String secondOption = tokenizedCode.nextToken();
+        if (secondOption.equals("bundleFile")) {
+            Helper.crash("\"bundleFile\" will be implemented in future versions of CJava");
+        } else if (secondOption.equals("import")) {
+            if (!tokenizedCode.nextToken().equals("(")) tokenizedCode.issue("bad import syntax");
+            if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.LITERAL_STRING) {
+                tokenizedCode.issue("expected a string literal (library name)");
+            }
+            String libraryName = tokenizedCode.nextToken();
+            if (tokenizedCode.getNextTokenTypeOmitComma() != TokenizedCode.TokenType.LITERAL_STRING) {
+                tokenizedCode.issue("expected a string literal (method name)");
+            }
+            String methodName = tokenizedCode.nextToken();
+            List<String> types = new ArrayList<>();
+
+            TokenizedCode.TokenType nextTokenType;
+            while ((nextTokenType = tokenizedCode.getNextTokenTypeOmitComma(false)) == TokenizedCode.TokenType.SYMBOL) {
+                types.add(tokenizedCode.nextToken());
+            }
+
+            return true;
+        }
+
+        boolean shouldConvert = (tokenizedCode.getNextTokenType() == TokenizedCode.TokenType.LITERAL_STRING);
+        String value = tokenizedCode.nextToken();
+        if (shouldConvert) value = Helper.stringTokenToString(value);
+
+        pragmaOptions.put(secondOption, value);
+
+        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -118,7 +179,6 @@ public class Preprocessor {
                 }
             }
             if (isLastLine()) {
-                System.err.println("LAST LINE, YES!!");
                 tokenizedCode.removeLine((int) context.get("idx"));
 
                 return true;
@@ -127,7 +187,6 @@ public class Preprocessor {
 
             return false;
         }
-        System.err.println(tokenizedCode.getLine());
         if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) tokenizedCode.issue("bad #define name");
         name = tokenizedCode.nextToken();
         value = collectRemainingTokens(true);

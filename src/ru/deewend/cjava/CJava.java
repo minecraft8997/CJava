@@ -17,13 +17,16 @@ public class CJava {
 
     final Set<String> defines;
     private final InputStream sourceStream;
+    final String parentDirectory;
     TokenizedCode tokenizedLines;
+    private CompiledCode compiledCode;
     int idx;
     private final boolean debugPreprocessingResult;
 
-    public CJava(Set<String> defines, InputStream sourceStream, boolean debugPreprocessingResult) {
+    public CJava(Set<String> defines, InputStream sourceStream, String parentDirectory, boolean debugPreprocessingResult) {
         this.defines = new HashSet<>(defines);
         this.sourceStream = sourceStream;
+        this.parentDirectory = parentDirectory;
         this.debugPreprocessingResult = debugPreprocessingResult;
     }
 
@@ -121,13 +124,15 @@ public class CJava {
         System.out.println("Exporter: " + exporter);
         System.out.println("Buffer capacity: " + bufferCapacity + " bytes");
         System.out.println("Output file: " + outputFile);
+        System.out.println();
 
         Exporter exporterObj = Helper.getExporter(exporter);
         if (exporterObj == null) System.exit(-1);
 
         CJava compiler;
-        try (InputStream stream = new FileInputStream(sourceFile)) {
-            compiler = new CJava(defines, stream, true);
+        File file = new File(sourceFile);
+        try (InputStream stream = new FileInputStream(file)) {
+            compiler = new CJava(defines, stream, file.getParent(), true);
             compiler.load();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -160,6 +165,11 @@ public class CJava {
 
     @SuppressWarnings("CallToPrintStackTrace")
     public void preprocess() {
+        /*
+         * Instantiating in advance to be able to add imports specified in #pragma cjava import.
+         */
+        compiledCode = new CompiledCode();
+
         Preprocessor.getInstance().linkCompiler(this);
 
         while (idx != tokenizedLines.linesCount()) {
@@ -204,7 +214,11 @@ public class CJava {
         }
     }
 
-    public CompiledCode compile() {
+    public void compile() {
         return null;
+    }
+
+    public CompiledCode getCompiledCode() {
+        return compiledCode;
     }
 }

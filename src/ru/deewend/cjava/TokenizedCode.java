@@ -1,6 +1,7 @@
 package ru.deewend.cjava;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class TokenizedCode {
@@ -62,8 +63,7 @@ public class TokenizedCode {
     }
 
     public List<String> getLine() {
-        System.err.println("current next: " + nextTokenIdx);
-        return new ArrayList<>(tokenizedLines.get(lineIdx));
+        return Collections.unmodifiableList(tokenizedLines.get(lineIdx));
     }
 
     public void insertFirstLine(List<String> tokenizedLine) {
@@ -76,14 +76,27 @@ public class TokenizedCode {
         return nextTokenIdx < tokenizedLines.get(lineIdx).size();
     }
 
-    public TokenType getNextTokenType() {
+    // note that this moves the cursor
+    public TokenType getNextTokenTypeOmitComma(boolean strict) {
+        String nextToken;
+        if (!(nextToken = nextToken()).equals(",")) {
+            if (!strict) return detectTokenType(nextToken);
 
+            issue("expected a comma");
+        }
+
+        return getNextTokenType();
+    }
+
+    public TokenType getNextTokenType() {
         String nextToken = nextToken(false);
+
+        return detectTokenType(nextToken);
+    }
+
+    private TokenType detectTokenType(String token) {
         for (TokenType possibleType : TokenType.values()) {
-            if (possibleType.detect(nextToken)) {
-                System.err.println("next t type " + possibleType);
-                return possibleType;
-            }
+            if (possibleType.detect(token)) return possibleType;
         }
         issue("could not determine the next token type"); // could probably return OTHER instead?
 
@@ -108,8 +121,12 @@ public class TokenizedCode {
         if (nextTokenIdx == 0) issue("nextToken has never been called");
 
         List<String> tokens = tokenizedLines.get(lineIdx);
-        if (!newValue.isEmpty()) tokens.set(nextTokenIdx - 1, newValue);
-        else                     tokens.remove(nextTokenIdx - 1);
+        if (!newValue.isEmpty()) {
+            tokens.set(nextTokenIdx - 1, newValue);
+        } else {
+            tokens.remove(nextTokenIdx - 1);
+            nextTokenIdx--;
+        }
     }
 
     public void insertToken(String newValue) {

@@ -35,10 +35,8 @@ public class Tokenizer {
 
         List<String> result = new ArrayList<>();
         while (!line.isEmpty()) {
-            //System.out.println("Line1 " + line);
             // removing blank symbols in the start
             line = line.replaceFirst("^\\s*", "");
-            //System.out.println("Line2 " + line);
             if (line.isEmpty()) continue;
 
             token = null;
@@ -92,14 +90,11 @@ public class Tokenizer {
     }
 
     private void token() {
-        //System.out.println(line);
         token = line.substring(0, i + 1);
-        //System.err.println(token);
         line = line.substring(i + 1);
     }
 
     private void issue(String message) {
-        System.out.println(line);
         throw new IllegalArgumentException("Line " + lineNumber + ": " + message);
     }
 }
