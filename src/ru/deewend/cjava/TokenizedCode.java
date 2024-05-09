@@ -1,5 +1,6 @@
 package ru.deewend.cjava;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TokenizedCode {
@@ -33,6 +34,13 @@ public class TokenizedCode {
         }
     }
 
+    /*
+     * TODO Probably worth doing something like List<Triple<String, Integer, List<String>>> where a Triple contains:
+     *  1) String - the source file from where this line was taken;
+     *  2) Integer - the original line number;
+     *  3) List<String> - the line itself (= list of tokens).
+     *  This will allow us not to report an "Internal line" in case of an error, which is literally not helpful at all.
+     */
     private final List<List<String>> tokenizedLines;
     private int lineIdx;
     private int nextTokenIdx;
@@ -53,14 +61,29 @@ public class TokenizedCode {
         nextTokenIdx = 0;
     }
 
+    public List<String> getLine() {
+        System.err.println("current next: " + nextTokenIdx);
+        return new ArrayList<>(tokenizedLines.get(lineIdx));
+    }
+
+    public void insertFirstLine(List<String> tokenizedLine) {
+        tokenizedLines.add(0, tokenizedLine);
+        linesCountModified = true;
+        lineIdx++;
+    }
+
     public boolean hasMoreTokens() {
         return nextTokenIdx < tokenizedLines.get(lineIdx).size();
     }
 
     public TokenType getNextTokenType() {
+
         String nextToken = nextToken(false);
         for (TokenType possibleType : TokenType.values()) {
-            if (possibleType.detect(nextToken)) return possibleType;
+            if (possibleType.detect(nextToken)) {
+                System.err.println("next t type " + possibleType);
+                return possibleType;
+            }
         }
         issue("could not determine the next token type"); // could probably return OTHER instead?
 
@@ -101,6 +124,12 @@ public class TokenizedCode {
 
         tokenizedLines.remove(lineIdx);
         linesCountModified = true;
+        if (lineIdx == this.lineIdx) {
+            this.lineIdx = 0;
+            nextTokenIdx = 0;
+        } else if (lineIdx < this.lineIdx) {
+            this.lineIdx--;
+        }
     }
 
     public boolean isLinesCountModified() {

@@ -2,7 +2,7 @@
 
 #pragma cjava subsystem gui
 #pragma cjava minNTVersion 4
-#pragma cjava uses("MessageBoxA", "user32.dll")
+#pragma cjava import("MessageBoxA", "user32.dll", byte, pointer, pointer, byte)
 
 // just for demonstration purposes, currently this feature without variables isn't really useful
 #pragma cjava bundleFile("./myImage.png", 0)

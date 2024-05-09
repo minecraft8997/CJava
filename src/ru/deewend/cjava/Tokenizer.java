@@ -10,6 +10,7 @@ public class Tokenizer {
     private String line;
     private String token;
     private int i;
+    private int lineNumber;
 
     private Tokenizer() {
     }
@@ -22,13 +23,22 @@ public class Tokenizer {
         this.compiler = compiler;
     }
 
+    /*
     public List<String> tokenizeLine() {
-        line = compiler.sourceLines.get(compiler.idx);
+        return tokenizeLine(compiler.sourceLines.get(compiler.idx));
+    }
+     */
+
+    public List<String> tokenizeLine(String originalLine, int lineNumber) {
+        this.line = originalLine;
+        this.lineNumber = lineNumber;
 
         List<String> result = new ArrayList<>();
         while (!line.isEmpty()) {
+            //System.out.println("Line1 " + line);
             // removing blank symbols in the start
             line = line.replaceFirst("^\\s*", "");
+            //System.out.println("Line2 " + line);
             if (line.isEmpty()) continue;
 
             token = null;
@@ -40,6 +50,8 @@ public class Tokenizer {
                 }
                 i--;
                 token();
+            } else if (line.startsWith("//")) {
+                break;
             } else if (firstSymbol == '"') {
                 for (i = 1; i < line.length(); i++) {
                     char currentChar = line.charAt(i);
@@ -74,18 +86,20 @@ public class Tokenizer {
             }
             result.add(token);
         }
-        line = null;
         token = null;
 
         return result;
     }
 
     private void token() {
+        //System.out.println(line);
         token = line.substring(0, i + 1);
+        //System.err.println(token);
         line = line.substring(i + 1);
     }
 
     private void issue(String message) {
-        throw new IllegalArgumentException("Line " + (compiler.idx + 1) + ": " + message);
+        System.out.println(line);
+        throw new IllegalArgumentException("Line " + lineNumber + ": " + message);
     }
 }

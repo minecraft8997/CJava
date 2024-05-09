@@ -4,12 +4,9 @@ import java.lang.reflect.Method;
 import java.util.*;
 
 public class Preprocessor {
-    public interface LineProcessor {
-        void process();
-    }
-
     private static final Preprocessor INSTANCE = new Preprocessor();
     private final Map<Integer, List<Integer>> futureAddresses = new HashMap<>();
+    private final Map<String, Object> context = new HashMap<>();
     private Set<String> defines;
     private CJava compiler;
     private TokenizedCode tokenizedCode;
@@ -48,48 +45,99 @@ public class Preprocessor {
         if (nextLineRequestedBy != null) {
             method = getClass().getDeclaredMethod(nextLineRequestedBy);
             nextLineRequestedBy = null;
-        } else if (isDirective()) {
-            if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) tokenizedCode.issue("bad directive");
-            String directive = tokenizedCode.nextToken();
+        } else {
+            context.clear();
 
-            char firstCharUppercase = Character.toUpperCase(directive.charAt(0));
-            String newDirective = firstCharUppercase + directive.substring(1);
+            String directive;
+            if ((directive = scanDirective(true)) != null) {
+                char firstCharUppercase = Character.toUpperCase(directive.charAt(0));
+                String newDirective = firstCharUppercase + directive.substring(1);
 
-            method = getClass().getDeclaredMethod("do" + newDirective);
+                method = getClass().getDeclaredMethod("do" + newDirective);
+            }
         }
         if (method != null) {
             method.setAccessible(true);
 
-            return (Boolean) method.invoke(this, tokenizedCode);
+            System.err.println("Invoking " + method.getName() + " " + method.getDeclaringClass());
+            return (Boolean) method.invoke(this);
         }
 
         return false;
     }
 
-    // note that this method causes TokenizedCode's cursor to move
+    // note that this method may cause TokenizedCode's cursor to move
     private boolean isDirective() {
         return tokenizedCode.hasMoreTokens() && tokenizedCode.nextToken().equals("#");
+    }
+
+    private String scanDirective(boolean strict) {
+        if (isDirective()) {
+            boolean hasIssue = false;
+            if (!tokenizedCode.hasMoreTokens() || tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) {
+                if (strict) tokenizedCode.issue("bad directive");
+                else        hasIssue = true;
+            }
+
+            if (!hasIssue) return tokenizedCode.nextToken();
+        }
+
+        return null;
     }
 
     public boolean doInclude() {
         return false;
     }
 
+    public boolean doPragma() {
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
     public boolean doDefine() {
-        if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) tokenizedCode.issue("bad #define name");
-        String name = tokenizedCode.nextToken();
-        List<String> value = collectRemainingTokens(true);
-        goThroughLines(() -> { // TODO rewrite, why would I need a loop when I can just nextLineRequestedBy = "doDefine" or something
+        String name;
+        List<String> value;
+        if (!context.isEmpty()) {
+            name = (String) context.get("name");
+            value = null;
+
+            String directive;
+            if ((directive = scanDirective(false)) != null && directive.startsWith("if")) {
+                nextLineRequestedBy = "doDefine";
+
+                return false;
+            }
             while (tokenizedCode.hasMoreTokens()) {
                 String nextToken = tokenizedCode.nextToken();
                 if (nextToken.equals(name)) {
+                    if (value == null) {
+                        value = (List<String>) context.get("value");
+                    }
                     tokenizedCode.patchToken(value.get(0));
                     for (int j = 1; j < value.size(); j++) tokenizedCode.insertToken(value.get(j));
                 }
             }
-        });
-        tokenizedCode.removeLine(compiler.idx);
+            if (isLastLine()) {
+                System.err.println("LAST LINE, YES!!");
+                tokenizedCode.removeLine((int) context.get("idx"));
+
+                return true;
+            }
+            nextLineRequestedBy = "doDefine";
+
+            return false;
+        }
+        System.err.println(tokenizedCode.getLine());
+        if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) tokenizedCode.issue("bad #define name");
+        name = tokenizedCode.nextToken();
+        value = collectRemainingTokens(true);
+        context.put("name", name);
+        context.put("value", value);
+        context.put("idx", compiler.idx);
+
         defines.add(name);
+
+        nextLineRequestedBy = "doDefine";
 
         return false;
     }
@@ -99,16 +147,56 @@ public class Preprocessor {
     }
 
     public boolean doIfdef(boolean not) {
+        String mode;
+        if (!context.isEmpty()) {
+            String token;
+            if ((token = scanDirective(false)) != null) {
+                int stack = (int) context.get("stack");
+                if (token.startsWith("if")) {
+                    context.put("stack", (stack + 1));
+                } else if (token.equals("endif")) {
+                    if (stack == 0) {
+                        mode = (String) context.get("mode");
+                        int startingWith = (int) context.get("startingWith");
+                        //noinspection StringEquality
+                        if (mode == "clearIfAndEndIf") { // a small optimization; we don't need equals() here
+                            tokenizedCode.removeLine(compiler.idx);
+                            tokenizedCode.removeLine(startingWith);
+                        } else { // == "clearEverything"
+                            for (int i = compiler.idx; i >= startingWith; i--) {
+                                tokenizedCode.removeLine(i);
+                            }
+                        }
+
+                        return true;
+                    } else {
+                        context.put("stack", (stack - 1));
+                        nextLineRequestedBy = "doIfdef";
+
+                        return false;
+                    }
+                }
+            }
+            nextLineRequestedBy = "doIfdef";
+
+            return false;
+        }
         if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) {
             tokenizedCode.issue("it is not possible a #define with such name exists");
         }
         String name = tokenizedCode.nextToken();
         boolean defined = defines.contains(name);
-        if ((not && !defined) || (!not && defined)) {
-            goThroughLines(() -> {
 
-            });
+        if ((not && !defined) || (!not && defined)) {
+            mode = "clearIfAndEndIf";
+        } else {
+            mode = "clearEverything";
         }
+        context.put("mode", mode);
+        context.put("startingWith", compiler.idx);
+        context.put("stack", 0);
+
+        nextLineRequestedBy = "doIfdef";
 
         return false;
     }
@@ -123,11 +211,8 @@ public class Preprocessor {
         return false;
     }
 
-    private void goThroughLines(LineProcessor processor) {
-        for (int i = 1; compiler.idx + i < tokenizedCode.linesCount(); i++) {
-            tokenizedCode.switchToLine(compiler.idx + i);
-            processor.process();
-        }
+    private boolean isLastLine() {
+        return compiler.idx == tokenizedCode.linesCount() - 1;
     }
 
     private List<String> collectRemainingTokens(boolean isDefine) {

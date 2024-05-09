@@ -2,12 +2,13 @@ package ru.deewend.cjava;
 
 import ru.deewend.cjava.exporter.Exporter;
 
-import java.lang.reflect.Field;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public class Helper {
     private static final Map<String, Exporter> EXPORTER_CACHE = new HashMap<>();
@@ -53,8 +54,29 @@ public class Helper {
         return true;
     }
 
+    public static List<List<String>> tokenize(InputStream sourceStream) {
+        List<String> sourceLines = new ArrayList<>();
+        try {
+            // assuming sourceStream will be closed by the caller
+            // both BufferedStream and InputStreamReader themselves don't hold any native resources, not closing them
+            BufferedReader reader = new BufferedReader(new InputStreamReader(sourceStream));
+            String line;
+            while ((line = reader.readLine()) != null) sourceLines.add(line);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        List<List<String>> tokenizedLines = new ArrayList<>();
+        for (int i = 0; i < sourceLines.size(); i++) {
+            tokenizedLines.add(Tokenizer.getInstance().tokenizeLine(sourceLines.get(i), i));
+        }
+
+        return tokenizedLines;
+    }
+
     public static void crash(String message) {
-        throw new UnsupportedOperationException();
+        System.err.println("Crash: " + message);
+
+        System.exit(-1);
     }
 
     @SuppressWarnings("CallToPrintStackTrace")
@@ -69,10 +91,13 @@ public class Helper {
         try {
             Class<?> clazz = Class.forName("ru.deewend.cjava.exporter." + name);
             instance = (Exporter) clazz.newInstance();
+        } catch (ClassNotFoundException e) {
+            System.err.println("Unknown exporter");
+
+            return null;
         } catch (Exception e) {
             System.err.println("Could not instantiate an Exporter:");
             e.printStackTrace();
-            System.err.println("getExporter(\"" + name + "\") will return null");
 
             return null;
         }

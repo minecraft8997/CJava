@@ -1,11 +1,12 @@
 package ru.deewend.cjava;
 
 import ru.deewend.cjava.exporter.Exporter;
-import ru.deewend.cjava.exporter.WinI386;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class CJava {
     public static final int CONTEXT_EXPECTING_SOURCE_FILE = 1;
@@ -16,7 +17,6 @@ public class CJava {
 
     final Set<String> defines;
     private final InputStream sourceStream;
-    List<String> sourceLines;
     TokenizedCode tokenizedLines;
     int idx;
     private final boolean debugPreprocessingResult;
@@ -31,6 +31,7 @@ public class CJava {
     public static void main(String[] args) {
         String sourceFile = null;
         Set<String> defines = new HashSet<>();
+        boolean debugPreprocessor = false;
         String exporter = "WinI386";
         int bufferCapacity = 65536;
         String outputFile = null;
@@ -75,6 +76,8 @@ public class CJava {
                         context = CONTEXT_EXPECTING_SOURCE_FILE;
                     } else if (argument.equalsIgnoreCase("-d")) {
                         context = CONTEXT_EXPECTING_DEFINES;
+                    } else if (argument.equalsIgnoreCase("-dp")) {
+                        debugPreprocessor = true;
                     } else if (argument.equalsIgnoreCase("-e")) {
                         context = CONTEXT_EXPECTING_EXPORTER;
                     } else if (argument.equalsIgnoreCase("-bc")) {
@@ -96,7 +99,7 @@ public class CJava {
 
             hasIssues = true;
         }
-        if (Helper.validateToken(exporter)) {
+        if (!Helper.validateToken(exporter)) {
             System.err.println("Bad exporter name");
 
             hasIssues = true;
@@ -108,31 +111,19 @@ public class CJava {
         }
         if (hasIssues) {
             System.err.println("Usage: java -jar CJava.jar " +
-                    "-s <sourceFile> [-d [define1] [define2] ...] [-e <exporter>] [-bc <bufferCapacity>] -o <outputFile>");
+                    "-s <sourceFile> [-d [define1] [define2] ...] [-dp] [-e <exporter>] [-bc <bufferCapacity>] -o <outputFile>");
 
             System.exit(-1);
         }
         System.out.println("Source file: " + sourceFile);
         System.out.println("Defines (might be listed in a different order): " + String.join(" ", defines));
+        System.out.println("Debug preprocessor: " + debugPreprocessor);
         System.out.println("Exporter: " + exporter);
         System.out.println("Buffer capacity: " + bufferCapacity + " bytes");
         System.out.println("Output file: " + outputFile);
 
-        Exporter exporterObj;
-        try {
-            Class<?> clazz = Class.forName("ru.deewend.cjava.exporter." + exporter);
-            exporterObj = (Exporter) clazz.newInstance();
-        } catch (ClassNotFoundException e) {
-            System.err.println("Unknown exporter");
-            System.exit(-1);
-
-            return;
-        } catch (Exception e) {
-            System.err.println("Failed to instantiate the exporter");
-            System.exit(-1);
-
-            return;
-        }
+        Exporter exporterObj = Helper.getExporter(exporter);
+        if (exporterObj == null) System.exit(-1);
 
         CJava compiler;
         try (InputStream stream = new FileInputStream(sourceFile)) {
@@ -160,29 +151,18 @@ public class CJava {
     }
 
     public void load() {
-        try {
-            // assuming sourceStream will be closed by the caller
-            // both BufferedStream and InputStreamReader themselves don't hold any native resources, not closing them
-            BufferedReader reader = new BufferedReader(new InputStreamReader(sourceStream));
-            String line;
-            while ((line = reader.readLine()) != null) sourceLines.add(line);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        List<List<String>> tokenizedLines = new ArrayList<>();
-        for (idx = 0; idx < sourceLines.size(); idx++) {
-            tokenizedLines.add(Tokenizer.getInstance().tokenizeLine());
-        }
-        this.tokenizedLines = TokenizedCode.of(tokenizedLines);
+        // assuming sourceStream will be closed by the caller
+        // both BufferedStream and InputStreamReader themselves don't hold any native resources, not closing them
+        List<List<String>> tokenizedLines = Helper.tokenize(sourceStream);
 
-        sourceLines = null;
+        this.tokenizedLines = TokenizedCode.of(tokenizedLines);
     }
 
     @SuppressWarnings("CallToPrintStackTrace")
     public void preprocess() {
         Preprocessor.getInstance().linkCompiler(this);
 
-        while (idx != sourceLines.size()) {
+        while (idx != tokenizedLines.linesCount()) {
             boolean shouldReset = false;
             try {
                 shouldReset = Preprocessor.getInstance().handleLine();
@@ -195,9 +175,12 @@ public class CJava {
             idx = (shouldReset ? 0 : idx + 1);
         }
         if (debugPreprocessingResult) {
-            for (idx = 0; idx < sourceLines.size(); idx++) {
-                String line = sourceLines.get(idx);
-                System.out.println(line);
+            for (int i = 0; i < tokenizedLines.linesCount(); i++) {
+                tokenizedLines.switchToLine(i);
+                List<String> line = tokenizedLines.getLine();
+
+                System.out.println(String.join(" ", line));
+                /*
                 if (Preprocessor.getInstance().hasFutureAddresses()) {
                     // assuming the list is sorted in ascending order
                     List<Integer> futureAddresses = Preprocessor.getInstance().listFutureAddresses();
@@ -216,6 +199,7 @@ public class CJava {
 
                     System.out.println("CJava will put an address here");
                 }
+                 */
             }
         }
     }
