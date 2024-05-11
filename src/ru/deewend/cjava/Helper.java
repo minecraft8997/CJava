@@ -71,6 +71,8 @@ public class Helper {
     }
 
     public static void crash(String message) {
+        if (message == null || message.isEmpty()) message = "<no further information>";
+
         System.err.println("Crash: " + message);
 
         System.exit(-1);

@@ -4,12 +4,13 @@
 #pragma cjava minNTVersion 4
 #pragma cjava import("MessageBoxA", "user32.dll", byte, pointer, pointer, byte)
 
-// just for demonstration purposes, currently this feature without variables isn't really useful
-#pragma cjava bundleFile("./myImage.png", 0)
+// #pragma cjava bundleFile("./myImage.png", 0) // to be implemented
 
 #define HELLO_WORLD "Hello World!"
 #ifndef HELLO_WORLD
-#error This should never happen
+#ifdef HELLO_WORLD
+#error "This should never happen"
+#endif
 #endif
 
 int main() {

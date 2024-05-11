@@ -90,11 +90,11 @@ public class Preprocessor {
 
     @SuppressWarnings("IOStreamConstructor")
     public boolean doInclude() {
-        tokenizedCode.removeLine(compiler.idx);
         if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.LITERAL_STRING) {
             tokenizedCode.issue("expected the next token (path to the file to be included) to be a string literal");
         }
         String fileName = Helper.stringTokenToString(tokenizedCode.nextToken());
+        tokenizedCode.removeLine(compiler.idx);
 
         List<List<String>> tokenizedLines;
         File file = new File(compiler.parentDirectory, fileName);
@@ -111,7 +111,6 @@ public class Preprocessor {
     }
 
     public boolean doPragma() {
-        tokenizedCode.removeLine(compiler.idx);
         if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) {
             tokenizedCode.issue("expected the next token (after #pragma) to be a symbol");
         }
@@ -130,24 +129,29 @@ public class Preprocessor {
             if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.LITERAL_STRING) {
                 tokenizedCode.issue("expected a string literal (library name)");
             }
-            String libraryName = tokenizedCode.nextToken();
-            if (tokenizedCode.getNextTokenTypeOmitComma() != TokenizedCode.TokenType.LITERAL_STRING) {
+            String libraryName = Helper.stringTokenToString(tokenizedCode.nextToken());
+            if (tokenizedCode.getNextTokenTypeOmitComma(true) != TokenizedCode.TokenType.LITERAL_STRING) {
                 tokenizedCode.issue("expected a string literal (method name)");
             }
-            String methodName = tokenizedCode.nextToken();
+            String methodName = Helper.stringTokenToString(tokenizedCode.nextToken());
             List<String> types = new ArrayList<>();
 
-            TokenizedCode.TokenType nextTokenType;
-            while ((nextTokenType = tokenizedCode.getNextTokenTypeOmitComma(false)) == TokenizedCode.TokenType.SYMBOL) {
+            while (tokenizedCode.getNextTokenTypeOmitComma(false) == TokenizedCode.TokenType.SYMBOL) {
                 types.add(tokenizedCode.nextToken());
             }
+            if (!tokenizedCode.currentToken().equals(")")) tokenizedCode.issue("bad import syntax");
+
+            tokenizedCode.removeLine(compiler.idx);
+
+            compiler.compiledCode.addImport(libraryName, methodName, types);
 
             return true;
         }
-
         boolean shouldConvert = (tokenizedCode.getNextTokenType() == TokenizedCode.TokenType.LITERAL_STRING);
         String value = tokenizedCode.nextToken();
         if (shouldConvert) value = Helper.stringTokenToString(value);
+
+        tokenizedCode.removeLine(compiler.idx);
 
         pragmaOptions.put(secondOption, value);
 

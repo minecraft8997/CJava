@@ -19,7 +19,7 @@ public class CJava {
     private final InputStream sourceStream;
     final String parentDirectory;
     TokenizedCode tokenizedLines;
-    private CompiledCode compiledCode;
+    CompiledCode compiledCode;
     int idx;
     private final boolean debugPreprocessingResult;
 
@@ -139,7 +139,8 @@ public class CJava {
         }
         compiler.preprocess();
 
-        CompiledCode compiledCode = compiler.compile();
+        compiler.compile();
+        CompiledCode compiledCode = compiler.getCompiledCode();
         exporterObj.load(compiledCode);
 
         ByteBuffer buffer = ByteBuffer.allocate(bufferCapacity);
@@ -215,7 +216,9 @@ public class CJava {
     }
 
     public void compile() {
-        return null;
+        for (int i = 0; i < tokenizedLines.linesCount(); i++) {
+            tokenizedLines.switchToLine(i);
+        }
     }
 
     public CompiledCode getCompiledCode() {

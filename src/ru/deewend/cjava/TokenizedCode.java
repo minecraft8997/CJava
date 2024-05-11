@@ -103,6 +103,14 @@ public class TokenizedCode {
         return null; // unreachable statement
     }
 
+    public String currentToken() {
+        if (nextTokenIdx == 0) issue("nextToken(true) has not been called");
+
+        List<String> tokens = tokenizedLines.get(lineIdx);
+
+        return tokens.get(nextTokenIdx - 1);
+    }
+
     public String nextToken() {
         return nextToken(true);
     }
