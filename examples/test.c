@@ -2,7 +2,7 @@
 
 #pragma cjava subsystem gui
 #pragma cjava minNTVersion 4
-#pragma cjava import("MessageBoxA", "user32.dll", byte, pointer, pointer, byte)
+#pragma cjava import("user32.dll", "MessageBoxA", byte, pointer, pointer, byte)
 
 // #pragma cjava bundleFile("./myImage.png", 0) // to be implemented
 

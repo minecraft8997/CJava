@@ -48,10 +48,15 @@ public class CompiledCode {
         return finishedConstructingImports;
     }
 
-    public Set<Map.Entry<LibraryName, Set<ExternalMethod>>> importsSet() {
+    public Set<Pair<LibraryName, Set<ExternalMethod>>> importsSet() {
         if (!finishedConstructingImports) throw new IllegalStateException();
 
-        return imports.entrySet();
+        Set<Pair<LibraryName, Set<ExternalMethod>>> result = new HashSet<>();
+        for (Map.Entry<LibraryName, Set<ExternalMethod>> data : imports.entrySet()) {
+            result.add(Pair.of(data.getKey(), Collections.unmodifiableSet(data.getValue())));
+        }
+
+        return result;
     }
 
     public void getStringTemporaryIdx(String str) {

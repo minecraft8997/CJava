@@ -4,9 +4,7 @@ import ru.deewend.cjava.exporter.Exporter;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class CJava {
     public static final int CONTEXT_EXPECTING_SOURCE_FILE = 1;
@@ -185,6 +183,9 @@ public class CJava {
             }
             idx = (shouldReset ? 0 : idx + 1);
         }
+        compiledCode.addImport("kernel32.dll", "ExitProcess", Collections.singletonList("byte"));
+        compiledCode.finishConstructingImports();
+
         if (debugPreprocessingResult) {
             for (int i = 0; i < tokenizedLines.linesCount(); i++) {
                 tokenizedLines.switchToLine(i);
