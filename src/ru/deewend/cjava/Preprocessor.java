@@ -11,7 +11,7 @@ public class Preprocessor {
     private static final Preprocessor INSTANCE = new Preprocessor();
     private final Map<Integer, List<Integer>> futureAddresses = new HashMap<>();
     private final Map<String, Object> context = new HashMap<>();
-    private final Map<String, Object> pragmaOptions = new HashMap<>();
+    // private final Map<String, String> pragmaOptions = new HashMap<>();
     private Set<String> defines;
     private CJava compiler;
     private TokenizedCode tokenizedCode;
@@ -54,8 +54,7 @@ public class Preprocessor {
 
             String directive;
             if ((directive = scanDirective(true)) != null) {
-                char firstCharUppercase = Character.toUpperCase(directive.charAt(0));
-                String newDirective = firstCharUppercase + directive.substring(1);
+                String newDirective = Helper.uppercaseFirstCharacter(directive);
 
                 method = getClass().getDeclaredMethod("do" + newDirective);
             }
@@ -88,7 +87,7 @@ public class Preprocessor {
         return null;
     }
 
-    @SuppressWarnings("IOStreamConstructor")
+    @SuppressWarnings({"IOStreamConstructor", "unused"})
     public boolean doInclude() {
         if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.LITERAL_STRING) {
             tokenizedCode.issue("expected the next token (path to the file to be included) to be a string literal");
@@ -110,6 +109,7 @@ public class Preprocessor {
         return true;
     }
 
+    @SuppressWarnings("unused")
     public boolean doPragma() {
         if (tokenizedCode.getNextTokenType() != TokenizedCode.TokenType.SYMBOL) {
             tokenizedCode.issue("expected the next token (after #pragma) to be a symbol");
@@ -143,7 +143,7 @@ public class Preprocessor {
 
             tokenizedCode.removeLine(compiler.idx);
 
-            compiler.compiledCode.addImport(libraryName, methodName, types);
+            compiler.metadata.addImport(libraryName, methodName, types);
 
             return true;
         }
@@ -153,12 +153,31 @@ public class Preprocessor {
 
         tokenizedCode.removeLine(compiler.idx);
 
-        pragmaOptions.put(secondOption, value);
+        Metadata metadata = compiler.metadata;
+        switch (secondOption) {
+            case "subsystem": {
+                if (!value.equals("gui")) tokenizedCode.issue("Subsystems other than \"gui\" are currently unsupported");
+
+                metadata.setSubsystem(2);
+
+                break;
+            }
+            case "minNTVersion": {
+                metadata.setMinNTVersion(Integer.parseInt(value));
+
+                break;
+            }
+            default: {
+                System.err.println("Unrecognized #pragma cjava option: " + secondOption + ", ignoring");
+
+                break;
+            }
+        }
 
         return true;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "unused"})
     public boolean doDefine() {
         String name;
         List<String> value;
@@ -205,6 +224,7 @@ public class Preprocessor {
         return false;
     }
 
+    @SuppressWarnings("unused")
     public boolean doIfdef() {
         return doIfdef(false);
     }
@@ -264,10 +284,12 @@ public class Preprocessor {
         return false;
     }
 
+    @SuppressWarnings("unused")
     public boolean doIfndef() {
         return doIfdef(true);
     }
 
+    @SuppressWarnings("unused")
     public boolean doError() {
         Helper.crash(String.join(" ", collectRemainingTokens(false)));
 

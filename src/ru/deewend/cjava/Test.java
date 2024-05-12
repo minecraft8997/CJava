@@ -15,7 +15,7 @@ public class Test {
         file.createNewFile();
         try (DataOutputStream stream = new DataOutputStream(Files.newOutputStream(file.toPath()))) {
             ByteBuffer buffer = ByteBuffer.allocate(65536);
-            exporter.load(new CompiledCode());
+            exporter.load(new Metadata());
             exporter.export(buffer);
             int position = buffer.position();
             buffer.flip();

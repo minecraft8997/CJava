@@ -6,7 +6,6 @@ import java.util.List;
 public class Tokenizer {
     private static final Tokenizer INSTANCE = new Tokenizer();
 
-    private CJava compiler;
     private String line;
     private String token;
     private int i;
@@ -17,10 +16,6 @@ public class Tokenizer {
 
     public static Tokenizer getInstance() {
         return INSTANCE;
-    }
-
-    public void linkCompiler(CJava compiler) {
-        this.compiler = compiler;
     }
 
     /*
@@ -76,7 +71,7 @@ public class Tokenizer {
                 if (closingSymbol != '\'') issue(badEnding);
 
                 token();
-            } else if ("#(){}+-/*,;\\".indexOf(firstSymbol) != -1) { // todo implement support of <> (#include <something>)
+            } else if ("#(){}+-/*,;=\\".indexOf(firstSymbol) != -1) { // todo implement support of <> (#include <something>)
                 i = 0;
                 token(); // instead of token = String.valueOf(firstSymbol); line = line.substring(1);
             } else {

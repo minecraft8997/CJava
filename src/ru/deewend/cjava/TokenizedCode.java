@@ -21,7 +21,7 @@ public class TokenizedCode {
         LITERAL_STRING((token, firstChar) -> firstChar == '"'),
         LITERAL_CHARACTER((token, firstChar) -> firstChar == '\''),
         OPERATOR_MATH(((token, firstChar) -> "+-/*".indexOf(firstChar) != -1)),
-        OTHER((token, firstChar) -> "#(){},\\".indexOf(firstChar) != -1),
+        OTHER((token, firstChar) -> "#(){},=\\".indexOf(firstChar) != -1),
         STATEMENT_END((token, firstChar) -> firstChar == ';');
 
         private final Detector detector;
@@ -166,6 +166,13 @@ public class TokenizedCode {
     }
 
     public void issue(String message) {
+        if (linesCountModified) {
+            System.err.println("Printing current internal line");
+            List<String> line = getLine();
+
+            System.err.println(String.join(" ", line));
+        }
+
         throw new IllegalArgumentException((linesCountModified ? "Internal " : "") +
                 "Line " + (lineIdx + 1) + ": " + message);
     }

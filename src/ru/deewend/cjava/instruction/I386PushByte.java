@@ -1,16 +1,14 @@
 package ru.deewend.cjava.instruction;
 
+import ru.deewend.cjava.exporter.Exporter;
+
 import java.nio.ByteBuffer;
 
 public class I386PushByte implements Instruction {
     private final byte value;
 
-    private I386PushByte(byte value) {
-        this.value = value;
-    }
-
-    public static I386PushByte of(byte value) {
-        return new I386PushByte(value);
+    public I386PushByte(Exporter exporter, Integer value) {
+        this.value = value.byteValue();
     }
 
     @Override

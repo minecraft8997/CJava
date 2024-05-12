@@ -17,15 +17,23 @@ public class CJava {
     private final InputStream sourceStream;
     final String parentDirectory;
     TokenizedCode tokenizedLines;
-    CompiledCode compiledCode;
+    Metadata metadata;
     int idx;
     private final boolean debugPreprocessingResult;
+    private final Exporter exporter;
 
-    public CJava(Set<String> defines, InputStream sourceStream, String parentDirectory, boolean debugPreprocessingResult) {
+    public CJava(
+            Set<String> defines,
+            InputStream sourceStream,
+            String parentDirectory,
+            boolean debugPreprocessingResult,
+            Exporter exporter
+    ) {
         this.defines = new HashSet<>(defines);
         this.sourceStream = sourceStream;
         this.parentDirectory = parentDirectory;
         this.debugPreprocessingResult = debugPreprocessingResult;
+        this.exporter = exporter;
     }
 
     @SuppressWarnings("IOStreamConstructor")
@@ -130,7 +138,7 @@ public class CJava {
         CJava compiler;
         File file = new File(sourceFile);
         try (InputStream stream = new FileInputStream(file)) {
-            compiler = new CJava(defines, stream, file.getParent(), true);
+            compiler = new CJava(defines, stream, file.getParent(), true, exporterObj);
             compiler.load();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -138,8 +146,8 @@ public class CJava {
         compiler.preprocess();
 
         compiler.compile();
-        CompiledCode compiledCode = compiler.getCompiledCode();
-        exporterObj.load(compiledCode);
+        Metadata metadata = compiler.getCompiledCode();
+        exporterObj.load(metadata);
 
         ByteBuffer buffer = ByteBuffer.allocate(bufferCapacity);
         exporterObj.export(buffer);
@@ -148,7 +156,7 @@ public class CJava {
         try (OutputStream stream = new FileOutputStream(outputFile)) {
             buffer.flip();
             stream.write(buffer.array(), 0, position);
-            for (; position < 16384; position++) stream.write(0);
+            for (; position < exporterObj.imageSize(); position++) stream.write(0);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -167,7 +175,7 @@ public class CJava {
         /*
          * Instantiating in advance to be able to add imports specified in #pragma cjava import.
          */
-        compiledCode = new CompiledCode();
+        metadata = new Metadata();
 
         Preprocessor.getInstance().linkCompiler(this);
 
@@ -183,8 +191,8 @@ public class CJava {
             }
             idx = (shouldReset ? 0 : idx + 1);
         }
-        compiledCode.addImport("kernel32.dll", "ExitProcess", Collections.singletonList("byte"));
-        compiledCode.finishConstructingImports();
+        metadata.addImport("kernel32.dll", "ExitProcess", Collections.singletonList("byte"));
+        metadata.finishConstructingImports();
 
         if (debugPreprocessingResult) {
             for (int i = 0; i < tokenizedLines.linesCount(); i++) {
@@ -217,12 +225,156 @@ public class CJava {
     }
 
     public void compile() {
+        if (tokenizedLines.linesCount() == 0) {
+            addExitProcess();
+
+            return;
+        }
+        mountStrings();
+
+        idx = 0;
+        tokenizedLines.switchToLine(0);
+        int methodCount = 0;
+        boolean insideAMethod = false;
+        while (hasMoreTokens()) {
+            String nextToken = nextToken();
+            if (!insideAMethod) {
+                if (!nextToken.equals("int") && !nextToken.equals("void")) {
+                    tokenizedLines.issue("unexpected token: " + nextToken);
+                }
+
+                String name = nextToken();
+                String action = nextToken();
+                if (action.equals("=")) tokenizedLines.issue("global variables are currently unsupported");
+                if (!action.equals("(")) tokenizedLines.issue("expected \"(\", found: " + action);
+                if (!name.equals("main")) tokenizedLines.issue("methods other than \"main\" are currently unsupported");
+                if (!nextToken().equals(")")) tokenizedLines.issue("method parameters are currently unsupported");
+                if (!nextToken().equals("{")) tokenizedLines.issue("expected an opening curly brace");
+                if (methodCount > 0) tokenizedLines.issue("defining multiple methods is currently unsupported");
+
+                insideAMethod = true;
+            }
+            if (nextToken.equals("}")) {
+                insideAMethod = false;
+                methodCount++;
+
+                continue;
+            }
+            boolean symbol = (hasMoreTokens() && getNextTokenType() == TokenizedCode.TokenType.SYMBOL);
+            nextToken = nextToken();
+            if (!nextToken().equals("(")) {
+                tokenizedLines.issue("expected a method call (any other statements are currently unsupported)");
+            }
+            if (!symbol) {
+                tokenizedLines.issue("unexpected token: " + nextToken);
+            }
+            ExternalMethod method = lookupExternalMethod(nextToken);
+            List<String> parameterTypes = method.getParameterTypes();
+
+            //if (!parameterTypes.isEmpty()) {
+            int i = 0;
+            List<Pair<String, Integer>> toPush = new ArrayList<>();
+            while (getNextTokenType() == TokenizedCode.TokenType.LITERAL_INTEGER) {
+                if (i == parameterTypes.size()) tokenizedLines.issue("too many arguments");
+
+                int value = Integer.parseInt(nextToken());
+                String type = Helper.uppercaseFirstCharacter(parameterTypes.get(i++));
+                toPush.add(Pair.of(type, value));
+
+                if (i < parameterTypes.size() && !(nextToken = nextToken()).equals(",")) {
+                    tokenizedLines.issue("expected a comma, found: " + nextToken);
+                }
+            }
+            if (i != parameterTypes.size()) tokenizedLines.issue("too few arguments");
+            if (!nextToken().equals(")")) {
+                tokenizedLines.issue("expected a closing brace");
+            }
+            i--;
+            for (; i >= 0; i--) {
+                Pair<String, Integer> pair = toPush.get(i);
+                String type = pair.getFirst();
+                int value = pair.getSecond();
+
+                exporter.putInstruction("Push" + type, value);
+            }
+            //}
+
+            exporter.putInstruction("CallExternalMethod", method.getName());
+            if (!(nextToken = nextToken()).equals(";")) tokenizedLines.issue("expected \";\", found: " + nextToken);
+        }
+
+        addExitProcess();
+    }
+
+    private ExternalMethod lookupExternalMethod(String name) {
+        Set<Pair<LibraryName, Set<ExternalMethod>>> importsSet = metadata.importsSet();
+
+        ExternalMethod method = null;
+        for (Pair<LibraryName, Set<ExternalMethod>> pair : importsSet) {
+            Set<ExternalMethod> externalMethods = pair.getSecond();
+
+            for (ExternalMethod externalMethod : externalMethods) {
+                if (externalMethod.getName().equals(name)) {
+                    if (method != null) {
+                        tokenizedLines.issue("While searching for definition of external method \"" + name + "\" " +
+                                "CJava has faced with two or more candidates. Method overloading is currently unsupported");
+                    }
+                    method = externalMethod;
+                }
+            }
+        }
+        if (method == null) tokenizedLines.issue("Unable to find method \"" + name + "\"");
+
+        return method;
+    }
+
+    private void addExitProcess() {
+        exporter.putInstruction("PushByte", 0);
+        exporter.putInstruction("CallExternalMethod", "ExitProcess");
+    }
+
+    private boolean hasMoreTokens() {
+        boolean hasMoreTokens = tokenizedLines.hasMoreTokens();
+        if (!hasMoreTokens) {
+            while (++idx < tokenizedLines.linesCount()) {
+                tokenizedLines.switchToLine(idx);
+                hasMoreTokens = tokenizedLines.hasMoreTokens();
+                if (hasMoreTokens) break;
+            }
+        }
+
+        return hasMoreTokens;
+    }
+
+    private TokenizedCode.TokenType getNextTokenType() {
+        hasMoreTokens();
+
+        return tokenizedLines.getNextTokenType();
+    }
+
+    private String nextToken() {
+        hasMoreTokens();
+
+        return tokenizedLines.nextToken();
+    }
+
+    private void mountStrings() {
         for (int i = 0; i < tokenizedLines.linesCount(); i++) {
             tokenizedLines.switchToLine(i);
+
+            while (tokenizedLines.hasMoreTokens()) {
+                boolean string = (tokenizedLines.getNextTokenType() == TokenizedCode.TokenType.LITERAL_STRING);
+                String token = tokenizedLines.nextToken();
+                if (string) {
+                    token = Helper.stringTokenToString(token);
+                    int address = exporter.mountString(token);
+                    tokenizedLines.patchToken(String.valueOf(address));
+                }
+            }
         }
     }
 
-    public CompiledCode getCompiledCode() {
-        return compiledCode;
+    public Metadata getCompiledCode() {
+        return metadata;
     }
 }

@@ -23,7 +23,7 @@ public class Helper {
         for (int i = 0; i < token.length(); i++) {
             char current = token.charAt(i);
             if (current == '_') {
-                continue; // this is allowed
+                continue;
             }
             if (current >= '0' && current <= '9') {
                 continue;
@@ -36,6 +36,14 @@ public class Helper {
         }
 
         return true;
+    }
+
+    public static String uppercaseFirstCharacter(String str) {
+        if (str.isEmpty()) return str;
+
+        char firstCharUppercase = Character.toUpperCase(str.charAt(0));
+
+        return (firstCharUppercase + str.substring(1));
     }
 
     public static String stringTokenToString(String token) {

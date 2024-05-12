@@ -3,9 +3,6 @@ package ru.deewend.cjava.exporter;
 import ru.deewend.cjava.*;
 import ru.deewend.cjava.instruction.Instruction;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -13,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class WinI386 implements Exporter {
+    public static final int IMAGE_BASE = 0x400000;
     public static final int SIZE_OF_IMAGE = 0x4000;
     public static final int SIZE_OF_HEADERS = 0x800;
     public static final int IMPORTS_VA = 0x2000;
@@ -22,14 +20,16 @@ public class WinI386 implements Exporter {
     public static final int MAX_IMPORTS_BYTES = SIZE_OF_HEADERS;
     public static final int DATA_SECTION_START = IMPORTS_SECTION_START + MAX_IMPORTS_BYTES;
     public static final int MAX_DATA_BYTES = SIZE_OF_HEADERS;
+    public static final int DATA_SECTION_VIRTUAL_ADDRESS = 0x3000;
 
     private final List<Instruction> instructionList = new ArrayList<>();
     private final List<byte[]> stringList = new LinkedList<>();
-    private CompiledCode compiledCode;
+    private final Map<String, Integer> externalMethodAddresses = new HashMap<>();
+    private Metadata metadata;
 
     @Override
-    public void load(CompiledCode compiledCode) {
-        this.compiledCode = compiledCode;
+    public void load(Metadata metadata) {
+        this.metadata = metadata;
     }
 
     @Override
@@ -70,18 +70,18 @@ public class WinI386 implements Exporter {
         buffer.putInt(0x1000); // RVA of entry point
         buffer.putInt(0); // padding
         buffer.putInt(0);
-        buffer.putInt(0x400000); // ImageBase
+        buffer.putInt(IMAGE_BASE); // ImageBase
         buffer.putInt(0x1000); // offset where sections should start
         buffer.putInt(0x200); // offset where sections start in the file
         buffer.putInt(0); // padding
         buffer.putInt(0);
-        buffer.putShort((short) compiledCode.getMinNTVersion());
+        buffer.putShort((short) metadata.getMinNTVersion());
         buffer.putShort((short) 0); // padding
         buffer.putInt(0);
         buffer.putInt(SIZE_OF_IMAGE); // size of image
         buffer.putInt(SIZE_OF_HEADERS); // size of headers
         buffer.putInt(0);
-        buffer.putShort((short) 2); // GUI
+        buffer.putShort((short) metadata.getSubsystem());
         buffer.putShort((short) 0); // padding
         buffer.putInt(0);
         buffer.putInt(0);
@@ -142,34 +142,9 @@ public class WinI386 implements Exporter {
         buffer.putInt(0);
         buffer.putInt(0xC0000040); // DATA_READ_WRITE
 
-        Helper.writeNullUntil(buffer, CODE_SECTION_START);
-
-        for (Instruction instruction : instructionList) instruction.encode(buffer);
-
-        /*
-        // x86 assembly
-        buffer.put((byte) 0x6A); // push
-        buffer.put((byte) 0); // pushing 0
-        buffer.put((byte) 0x68); // push address
-        buffer.putInt(0x403000);
-        buffer.put((byte) 0x68);
-        buffer.putInt(0x403017);
-        buffer.put((byte) 0x6A);
-        buffer.put((byte) 0);
-        buffer.putShort((short) 0x15FF); // call
-        buffer.putInt(0x402070); // function address
-        buffer.put((byte) 0x6A);
-        buffer.put((byte) 0); // exit code (pushing)
-        buffer.putShort((short) 0x15FF); // call
-        buffer.putInt(0x402068); // function address
-
-         */
-
-        Helper.writeNullUntil(buffer, IMPORTS_SECTION_START);
-
         // imports
 
-        Set<Pair<LibraryName, Set<ExternalMethod>>> importsSet = compiledCode.importsSet();
+        Set<Pair<LibraryName, Set<ExternalMethod>>> importsSet = metadata.importsSet();
         int methodCount = 0;
         int methodsLength = 0;
         for (Pair<LibraryName, Set<ExternalMethod>> pair : importsSet) {
@@ -258,6 +233,10 @@ public class WinI386 implements Exporter {
                 importsBuffer.putInt(0);
                 importsBuffer.putInt(pointerToLibraryName);
                 importsBuffer.putInt(pointer2);
+
+                // conflicts are possible here, since two different libraries can provide a method with
+                // the same name (?). Note that internal map methodNamePointers is already designed against this issue
+                externalMethodAddresses.put(method.getName(), (IMAGE_BASE + pointer2));
             }
         }
         importsBuffer.putInt(0);
@@ -269,77 +248,24 @@ public class WinI386 implements Exporter {
         importsBuffer.flip();
         byte[] wholeSection = importsBuffer.array();
         System.arraycopy(wholeSection, start, wholeSection, thePointer0, (end - start));
-        //System.out.printf("s %s, e %s, p0 %s\n", Integer.toHexString(start), Integer.toHexString(end), Integer.toHexString(thePointer0));
-        File f = new File("wholeSection.bin");
 
-        try {
-            f.createNewFile();
-            FileOutputStream s = new FileOutputStream(f);
-            s.write(wholeSection);
-            s.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        Helper.writeNullUntil(buffer, CODE_SECTION_START);
 
+        for (Instruction instruction : instructionList) instruction.encode(buffer);
 
+        Helper.writeNullUntil(buffer, IMPORTS_SECTION_START);
 
-        /*
-        int payloadOffset = IMPORTS_VA + (methodCount + 1) * 20;
-
-
-        for (int i = 0; i < methodCount; i++) {
-            buffer.putInt(payloadOffset + );
-            buffer.putInt()
-        }
-
-        for (Pair<LibraryName, Set<ExternalMethod>> pair : importsSet) {
-            Set<ExternalMethod> externalMethods = pair.getSecond();
-            methodCount += externalMethods.size();
-            for (ExternalMethod method : externalMethods) {
-                methodsLength += 2 + method.getName().length(); // check encoding?
-            }
-
-
-        }*/
-
-        /*
-        buffer.putInt(0x203C);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0x2078);
-        buffer.putInt(0x2068);
-
-        buffer.putInt(0x2044);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0x2085);
-        buffer.putInt(0x2070);
-
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-
-        buffer.putLong(0x204C);
-        buffer.putLong(0x205A);
-        Helper.putString(buffer, "\0\0ExitProcess\0");
-        Helper.putString(buffer, "\0\0MessageBoxA\0");
-        buffer.putLong(0x204C);
-        buffer.putLong(0x205A);
-        Helper.putString(buffer, "kernel32.dll\0");
-        Helper.putString(buffer, "user32.dll\0");
-
-         */
+        buffer.put(wholeSection);
 
         // strings
         Helper.writeNullUntil(buffer, DATA_SECTION_START);
+
         for (byte[] string : stringList) buffer.put(string);
     }
 
     @Override
     public int mountString(String str) {
-        int address = DATA_SECTION_START;
+        int address = IMAGE_BASE + DATA_SECTION_VIRTUAL_ADDRESS;
         for (byte[] string : stringList) {
             address += string.length;
         }
@@ -349,17 +275,30 @@ public class WinI386 implements Exporter {
     }
 
     @Override
-    public void putInstruction(String name, long parameter) {
+    public void putInstruction(String name, Object parameter) {
         Instruction instruction;
         try {
             Class<?> clazz = Class.forName("ru.deewend.cjava.instruction.I386" + name);
-            Constructor<?> constructor = clazz.getConstructor(Integer.class);
+            Constructor<?> constructor = clazz.getConstructor(Exporter.class, parameter.getClass());
 
-            instruction = (Instruction) constructor.newInstance((int) parameter);
+            instruction = (Instruction) constructor.newInstance(this, parameter);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
         instructionList.add(instruction);
+    }
+
+    @Override
+    public int getExternalMethodVirtualAddress(String name) {
+        Integer virtualAddress = externalMethodAddresses.get(name);
+        if (virtualAddress == null) throw new IllegalArgumentException("Unknown method");
+
+        return virtualAddress;
+    }
+
+    @Override
+    public int imageSize() {
+        return SIZE_OF_IMAGE;
     }
 }

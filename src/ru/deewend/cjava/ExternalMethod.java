@@ -33,6 +33,11 @@ public class ExternalMethod {
     private ExternalMethod(String name, List<String> parameterTypes) {
         this.name = name;
         this.parameterTypes = new ArrayList<>(parameterTypes);
+        for (String parameterType : parameterTypes) {
+            if (!Helper.validateToken(parameterType)) {
+                throw new IllegalArgumentException("Invalid parameter type: " + parameterType);
+            }
+        }
     }
 
     public static ExternalMethod of(String name, List<String> parameterTypes) {

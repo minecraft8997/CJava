@@ -1,21 +1,19 @@
 package ru.deewend.cjava.instruction;
 
+import ru.deewend.cjava.exporter.Exporter;
+
 import java.nio.ByteBuffer;
 
-public class I386Call implements Instruction {
+public class I386PushPointer implements Instruction {
     private final int address;
 
-    private I386Call(int address) {
+    public I386PushPointer(Exporter exporter, Integer address) {
         this.address = address;
-    }
-
-    public static I386Call of(int address) {
-        return new I386Call(address);
     }
 
     @Override
     public void encode(ByteBuffer buffer) {
-        buffer.putShort((short) 0x15FF);
+        buffer.put((byte) 0x68);
         buffer.putInt(address);
     }
 }
