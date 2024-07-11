@@ -252,15 +252,25 @@ public class WinI386 implements Exporter {
         Helper.writeNullUntil(buffer, CODE_SECTION_START);
 
         for (Instruction instruction : instructionList) instruction.encode(buffer);
+        checkOverflow(buffer.position() - CODE_SECTION_START);
 
         Helper.writeNullUntil(buffer, IMPORTS_SECTION_START);
 
+        checkOverflow(wholeSection.length);
         buffer.put(wholeSection);
 
         // strings
         Helper.writeNullUntil(buffer, DATA_SECTION_START);
 
         for (byte[] string : stringList) buffer.put(string);
+        checkOverflow(buffer.position() - DATA_SECTION_START);
+    }
+
+    private void checkOverflow(int written) {
+        if (written > SIZE_OF_HEADERS) {
+            throw new RuntimeException("An overflow occurred when mounting a section, " +
+                    "current size limit for all headers is hardcoded at 0x" + Integer.toHexString(SIZE_OF_HEADERS));
+        }
     }
 
     @Override
